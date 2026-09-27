@@ -29,10 +29,8 @@ Safety by design
 Usage
 -----
     python3 make_demos.py                       # writes ./gcode/*.gcode
-    python3 make_demos.py --text "3DPRINTOPIA"  # change the skywriter text
     python3 make_demos.py --max-speed 400       # if you've raised your limits
     python3 make_demos.py --accel 4000          # if you've raised max_z_accel
-    python3 make_demos.py --led toolhead        # light painting with the SB LEDs
     python3 make_demos.py --repeat 5            # showreel plays 5x back to back
 
 Run `python3 make_demos.py -h` for all options.
@@ -51,50 +49,6 @@ MACHINE = dict(square_corner_velocity=12.0)
 SAFE = dict(x_min=15.0, x_max=235.0,
             y_min=20.0, y_max=190.0,
             z_min=25.0, z_max=170.0)
-
-# Single-stroke font (Hershey "futural"), baseline at y=-9, cap height y=12.
-# Each entry: (advance width, "x,y,x,y,... x,y,..." strokes separated by spaces)
-FONT = {
-    'A': (18, "9,12,1,-9 9,12,17,-9 4,-2,14,-2"),
-    'B': (21, "4,12,4,-9 4,12,13,12,16,11,17,10,18,8,18,6,17,4,16,3,13,2 4,2,13,2,16,1,17,0,18,-2,18,-5,17,-7,16,-8,13,-9,4,-9"),
-    'C': (21, "18,7,17,9,15,11,13,12,9,12,7,11,5,9,4,7,3,4,3,-1,4,-4,5,-6,7,-8,9,-9,13,-9,15,-8,17,-6,18,-4"),
-    'D': (21, "4,12,4,-9 4,12,11,12,14,11,16,9,17,7,18,4,18,-1,17,-4,16,-6,14,-8,11,-9,4,-9"),
-    'E': (19, "4,12,4,-9 4,12,17,12 4,2,12,2 4,-9,17,-9"),
-    'F': (18, "4,12,4,-9 4,12,17,12 4,2,12,2"),
-    'G': (21, "18,7,17,9,15,11,13,12,9,12,7,11,5,9,4,7,3,4,3,-1,4,-4,5,-6,7,-8,9,-9,13,-9,15,-8,17,-6,18,-4,18,-1 13,-1,18,-1"),
-    'H': (22, "4,12,4,-9 18,12,18,-9 4,2,18,2"),
-    'I': (8, "4,12,4,-9"),
-    'J': (16, "12,12,12,-4,11,-7,10,-8,8,-9,6,-9,4,-8,3,-7,2,-4,2,-2"),
-    'K': (21, "4,12,4,-9 18,12,4,-2 9,3,18,-9"),
-    'L': (17, "4,12,4,-9 4,-9,16,-9"),
-    'M': (24, "4,12,4,-9 4,12,12,-9 20,12,12,-9 20,12,20,-9"),
-    'N': (22, "4,12,4,-9 4,12,18,-9 18,12,18,-9"),
-    'O': (22, "9,12,7,11,5,9,4,7,3,4,3,-1,4,-4,5,-6,7,-8,9,-9,13,-9,15,-8,17,-6,18,-4,19,-1,19,4,18,7,17,9,15,11,13,12,9,12"),
-    'P': (21, "4,12,4,-9 4,12,13,12,16,11,17,10,18,8,18,5,17,3,16,2,13,1,4,1"),
-    'Q': (22, "9,12,7,11,5,9,4,7,3,4,3,-1,4,-4,5,-6,7,-8,9,-9,13,-9,15,-8,17,-6,18,-4,19,-1,19,4,18,7,17,9,15,11,13,12,9,12 12,-5,18,-11"),
-    'R': (21, "4,12,4,-9 4,12,13,12,16,11,17,10,18,8,18,6,17,4,16,3,13,2,4,2 11,2,18,-9"),
-    'S': (20, "17,9,15,11,12,12,8,12,5,11,3,9,3,7,4,5,5,4,7,3,13,1,15,0,16,-1,17,-3,17,-6,15,-8,12,-9,8,-9,5,-8,3,-6"),
-    'T': (16, "8,12,8,-9 1,12,15,12"),
-    'U': (22, "4,12,4,-3,5,-6,7,-8,10,-9,12,-9,15,-8,17,-6,18,-3,18,12"),
-    'V': (18, "1,12,9,-9 17,12,9,-9"),
-    'W': (24, "2,12,7,-9 12,12,7,-9 12,12,17,-9 22,12,17,-9"),
-    'X': (20, "3,12,17,-9 17,12,3,-9"),
-    'Y': (18, "1,12,9,2,9,-9 17,12,9,2"),
-    'Z': (20, "17,12,3,-9 3,12,17,12 3,-9,17,-9"),
-    '0': (20, "9,12,6,11,4,8,3,3,3,0,4,-5,6,-8,9,-9,11,-9,14,-8,16,-5,17,0,17,3,16,8,14,11,11,12,9,12"),
-    '1': (20, "6,8,8,9,11,12,11,-9"),
-    '2': (20, "4,7,4,8,5,10,6,11,8,12,12,12,14,11,15,10,16,8,16,6,15,4,13,1,3,-9,17,-9"),
-    '3': (20, "5,12,16,12,10,4,13,4,15,3,16,2,17,-1,17,-3,16,-6,14,-8,11,-9,8,-9,5,-8,4,-7,3,-5"),
-    '4': (20, "13,12,3,-2,18,-2 13,12,13,-9"),
-    '5': (20, "15,12,5,12,4,3,5,4,8,5,11,5,14,4,16,2,17,-1,17,-3,16,-6,14,-8,11,-9,8,-9,5,-8,4,-7,3,-5"),
-    '6': (20, "16,9,15,11,12,12,10,12,7,11,5,8,4,3,4,-2,5,-6,7,-8,10,-9,11,-9,14,-8,16,-6,17,-3,17,-2,16,1,14,3,11,4,10,4,7,3,5,1,4,-2"),
-    '7': (20, "17,12,7,-9 3,12,17,12"),
-    '8': (20, "8,12,5,11,4,9,4,7,5,5,7,4,11,3,14,2,16,0,17,-2,17,-5,16,-7,15,-8,12,-9,8,-9,5,-8,4,-7,3,-5,3,-2,4,0,6,2,9,3,13,4,15,5,16,7,16,9,15,11,12,12,8,12"),
-    '9': (20, "16,5,15,2,13,0,10,-1,9,-1,6,0,4,2,3,5,3,6,4,9,6,11,9,12,10,12,13,11,15,9,16,5,16,0,15,-5,13,-8,10,-9,8,-9,5,-8,4,-6"),
-    '-': (18, "4,1,14,1"),
-    '!': (10, "5,12,5,-2 5,-7,4,-8,5,-9,6,-8,5,-7"),
-    ' ': (12, ""),
-}
 
 
 # --------------------------------------------------------------------------
@@ -136,13 +90,6 @@ class GcodeWriter:
     def dwell(self, ms):
         self.lines.append(f"G4 P{int(ms)}")
         self.moves.append(("dwell", ms / 1000.0))
-
-    def led(self, on):
-        if not self.args.led:
-            return
-        level = 1.0 if on else 0.0
-        self.lines.append(
-            f"SET_LED LED={self.args.led} RED={level} GREEN={level} BLUE={level}")
 
     def check(self, x, y, z):
         s = SAFE
@@ -203,12 +150,10 @@ class GcodeWriter:
         self.raw(f"G1 Z{a.cz:.3f} F{min(60, a.max_speed) * 60:.0f}   ; lift to demo height")
         self.raw(f"G1 X{a.cx:.3f} Y{a.cy:.3f} F{min(150, a.max_speed) * 60:.0f}  ; centre")
         self.pos = (a.cx, a.cy, a.cz)
-        self.led(False)
 
     def finish(self):
         a = self.args
         self.move(x=a.cx, y=a.cy, z=a.cz, speed=100)
-        self.led(False)
         self.raw("M400")
         self.msg("Prusawire - CoreXZ")
         self.comment("end of demo - motors stay enabled so the gantry holds position")
@@ -388,59 +333,6 @@ def demo_curves(g, args):
     g.dwell(400)
 
 
-def layout_text(text, width, cap_height):
-    """Return list of strokes [(x,z)...] in font units scaled to fit."""
-    text = text.upper()
-    missing = sorted({c for c in text if c not in FONT})
-    if missing:
-        raise SystemExit(f"Skywriter font has no glyphs for: {' '.join(missing)}")
-    total = sum(FONT[c][0] for c in text)
-    scale = min(width / total, cap_height / 21.0)
-    strokes, cursor = [], 0.0
-    for c in text:
-        adv, enc = FONT[c]
-        for st in enc.split():
-            nums = [float(v) for v in st.split(",")]
-            pts = [((cursor + nums[i]) * scale, (nums[i + 1] + 9) * scale)
-                   for i in range(0, len(nums), 2)]
-            strokes.append(pts)
-        cursor += adv
-    return strokes, total * scale, 21 * scale
-
-
-def _draw_strokes(g, args, strokes, ox, oz):
-    draw = min(args.draw_speed, args.max_speed)
-    for st in strokes:
-        pts = [(ox + x, oz + z) for x, z in st]
-        g.led(False)
-        g.move(x=pts[0][0], z=pts[0][1], speed=args.max_speed)
-        g.led(True)
-        g.polyline(pts[1:], draw)
-    g.led(False)
-
-
-def demo_skywriter(g, args):
-    text = args.text.upper()
-    g.msg(f"Skywriter: {text}")
-    if args.sky_mode == "word":
-        # Whole word in one line - small, but perfect for a long-exposure photo
-        width = SAFE["x_max"] - SAFE["x_min"] - 10
-        strokes, w, h = layout_text(text, width, cap_height=70)
-        _draw_strokes(g, args, strokes, args.cx - w / 2, args.cz - h / 2)
-    else:
-        # One big letter at a time, ~110 mm tall, traced in the same spot
-        for ch in text:
-            if ch == " ":
-                g.dwell(500)
-                continue
-            strokes, w, h = layout_text(ch, 200, cap_height=110)
-            g.msg(f"Skywriter: {text}  [{ch}]")
-            _draw_strokes(g, args, strokes, args.cx - w / 2, args.cz - h / 2)
-            g.dwell(700)
-    g.move(x=args.cx, z=args.cz, speed=150)
-    g.dwell(600)
-
-
 def demo_helix(g, args):
     """Toolhead + bed together: a fast helix, like a vase-mode travel."""
     cx, cy = args.cx, args.cy
@@ -467,8 +359,7 @@ DEMOS = [
     ("02_z_sprint", "Z sprint vs MK3S", demo_z_sprint),
     ("03_one_motor_diamond", "One-motor diamond", demo_one_motor),
     ("04_vertical_curves", "Vertical curves", demo_curves),
-    ("05_skywriter", "Skywriter", demo_skywriter),
-    ("06_helix_3d", "3D helix", demo_helix),
+    ("05_helix_3d", "3D helix", demo_helix),
 ]
 
 
@@ -596,17 +487,8 @@ def parse_args(argv=None):
                         "estimating times (default 2000 = stock max_z_accel)")
     p.add_argument("--speeds", type=float, nargs="+", default=[100, 200, 300],
                    help="speed tiers for zigzag/circles, mm/s (default 100 200 300)")
-    p.add_argument("--draw-speed", type=float, default=120.0,
-                   help="skywriter drawing speed, mm/s (default 120)")
     p.add_argument("--helix-speed", type=float, default=150.0,
                    help="3D helix speed, mm/s - this one moves the bed (default 150)")
-    p.add_argument("--text", default="PRUSAWIRE", help="skywriter text (A-Z 0-9 - ! space)")
-    p.add_argument("--sky-mode", choices=["letters", "word"], default="letters",
-                   help="skywriter: 'letters' = one big letter at a time (readable "
-                        "from the aisle), 'word' = whole word small (for light painting)")
-    p.add_argument("--led", default="",
-                   help="neopixel name for light painting, e.g. 'toolhead' (Nitehawk) "
-                        "or 'Stealthburner' (SB2209). Off by default.")
     p.add_argument("--home-cmd", default="CHOME",
                    help="homing command at the start (default CHOME = stock macro "
                         "that homes only when needed; use G28 to always home)")

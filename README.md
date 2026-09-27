@@ -8,14 +8,13 @@ Made for the stock `prusawire-klipper-config` (Klipper, `kinematics: corexz`, 30
 
 | File | ~Time | What it shows |
 |---|---|---|
-| `prusawire_00_showreel.gcode` | 5:15 | Demos 01–06 back to back, homes once |
-| `prusawire_00_showreel_loop.gcode` | 5:15 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
+| `prusawire_00_showreel.gcode` | 4:31 | All demos back to back, homes once |
+| `prusawire_00_showreel_loop.gcode` | 4:31 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
 | `prusawire_01_z_zigzag.gcode` | 1:50 | 140 mm-tall zigzag across the whole gantry at 100, 200 and 300 mm/s, then top-speed reversals: the shortest strokes that still reach full speed |
 | `prusawire_02_z_sprint.gcode` | 0:46 | Full-height Z sprints. Starts at **12 mm/s (MK3S leadscrew max)**, then 60, 150, 300 mm/s |
 | `prusawire_03_one_motor_diamond.gcode` | 0:26 | Diamond (45° edges, **one motor per edge**) vs. square (both motors), then nested diamonds |
 | `prusawire_04_vertical_curves.gcode` | 0:49 | Vertical circles at 3 speeds, spiral in/out, 3:2 Lissajous, five-point star |
-| `prusawire_05_skywriter.gcode` | 0:42 | Traces P-R-U-S-A-W-I-R-E one letter at a time, each ~110 mm tall |
-| `prusawire_06_helix_3d.gcode` | 0:32 | Gantry and bed together trace an 8-turn helix up and back down (150 mm/s) |
+| `prusawire_05_helix_3d.gcode` | 0:32 | Gantry and bed together trace an 8-turn helix up and back down (150 mm/s) |
 
 Times are estimates at stock limits. `preview.png` shows every path from the front.
 
@@ -65,7 +64,6 @@ Heads-up: the stock `CANCEL_PRINT` runs `PRINT_END`, which retracts 8 mm of fila
 ## Customizing
 
 ```
-python3 make_demos.py --text "3DPRINTOPIA"        # skywriter text (A–Z, 0–9, - ! space)
 python3 make_demos.py --max-speed 400             # if you've tuned past 300 mm/s
 python3 make_demos.py --accel 4000                # if you've raised max_z_accel
 python3 make_demos.py --speeds 150 300 450        # zigzag / circle speed tiers
@@ -103,8 +101,6 @@ Demo 01 labels each tier with the speed it will actually reach. A tooth is at mo
 ```
 .venv/bin/python -m unittest discover -s tests
 ```
-
-**Light painting:** `--led toolhead` (Nitehawk) or `--led Stealthburner` (SB2209) turns the toolhead LEDs on while drawing and off while travelling. Combine it with `--sky-mode word` to write the whole word in one line, then shoot it with a phone on a 10–15 s night-mode or long exposure in a dim spot. Visitors get a photo of PRUSAWIRE written in light.
 
 ## Booth talking points
 

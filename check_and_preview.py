@@ -73,13 +73,13 @@ for ax, name in zip(axs.flat, names):
     ax.text(125, 10, "keep-out: bed", ha="center", va="center", fontsize=7, color="0.45")
     ax.set_xlim(-5, 255); ax.set_ylim(-5, 188); ax.set_aspect("equal")
     t = name.replace("prusawire_", "").replace(".gcode", "")
-    if "skywriter" in t:
-        t += " (letters traced one at a time, overlaid here)"
     if "helix" in t:
         t += " (bed moves in Y too)"
     ax.set_title(t, fontsize=10)
     ax.set_xlabel("X (mm)", fontsize=8); ax.set_ylabel("Z (mm)", fontsize=8)
     ax.tick_params(labelsize=7)
+for ax in axs.flat[len(names):]:
+    ax.set_visible(False)
 cb = fig.colorbar(lc, ax=axs, shrink=0.6, pad=0.02)
 cb.set_label("requested speed (mm/s)")
 fig.suptitle("Prusawire CoreXZ demos: front view (X/Z plane), dashed = full travel", fontsize=12)

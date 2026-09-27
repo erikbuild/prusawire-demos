@@ -21,6 +21,7 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(gen.stderr, "")
             chk = run(os.path.join(ROOT, "check_and_preview.py"), tmp, *check_args, cwd=tmp)
             self.assertTrue(os.path.exists(os.path.join(tmp, "preview.png")))
+            self.files = sorted(os.listdir(tmp))
             return gen, chk
 
     def test_stock_build_passes_stock_check(self):
@@ -29,6 +30,11 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(chk.returncode, 0, chk.stdout)
         self.assertIn("All checks passed", chk.stdout)
         self.assertIn("<=300 mm/s", chk.stdout)
+        self.assertEqual([f for f in self.files if f.endswith(".gcode")], [
+            "prusawire_00_showreel.gcode", "prusawire_00_showreel_loop.gcode",
+            "prusawire_01_z_zigzag.gcode", "prusawire_02_z_sprint.gcode",
+            "prusawire_03_one_motor_diamond.gcode", "prusawire_04_vertical_curves.gcode",
+            "prusawire_05_helix_3d.gcode"])
 
     def test_raised_build_passes_matching_check(self):
         fast = ["--max-speed", "450", "--accel", "4000",

@@ -100,6 +100,27 @@ class ZigzagTest(unittest.TestCase):
             md.GcodeWriter.check(g, mv[3], mv[4], mv[5])
 
 
+class DemoListTest(unittest.TestCase):
+    def test_no_skywriter(self):
+        slugs = [slug for slug, _, _ in md.DEMOS]
+        self.assertEqual(slugs, ["01_z_zigzag", "02_z_sprint", "03_one_motor_diamond",
+                                 "04_vertical_curves", "05_helix_3d"])
+
+    def test_skywriter_and_led_options_are_gone(self):
+        for opt in (["--text", "HI"], ["--sky-mode", "word"], ["--draw-speed", "50"],
+                    ["--led", "toolhead"]):
+            with self.assertRaises(SystemExit), open(os.devnull, "w") as null:
+                stderr, sys.stderr = sys.stderr, null
+                try:
+                    args_for(*opt)
+                finally:
+                    sys.stderr = stderr
+
+    def test_no_led_commands_emitted(self):
+        g = md.build_showreel(args_for())
+        self.assertFalse(any(ln.startswith("SET_LED") for ln in g.lines))
+
+
 class EstimateTest(unittest.TestCase):
     def test_faster_limits_give_shorter_estimate(self):
         stock = args_for()
