@@ -58,3 +58,9 @@ Date: 2026-09-27
 ## Out of scope (loop back later)
 
 - Other demos that "don't work". Erik will describe them after this change.
+
+## Queued tasks (after this change)
+
+- README: quick install steps (`git clone https://github.com/...` then run).
+- `install-demo.sh`: installs the demo files onto the printer.
+- Loop back on the other demos that "don't work".

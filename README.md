@@ -8,9 +8,9 @@ Made for the stock `prusawire-klipper-config` (Klipper, `kinematics: corexz`, 30
 
 | File | ~Time | What it shows |
 |---|---|---|
-| `prusawire_00_showreel.gcode` | 5:00 | Demos 01–06 back to back, homes once |
-| `prusawire_00_showreel_loop.gcode` | 5:00 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
-| `prusawire_01_z_zigzag.gcode` | 1:40 | 110 mm-tall zigzag across the whole gantry at 100, 200 and 300 mm/s, then a tight fast Z "buzz" |
+| `prusawire_00_showreel.gcode` | 5:15 | Demos 01–06 back to back, homes once |
+| `prusawire_00_showreel_loop.gcode` | 5:15 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
+| `prusawire_01_z_zigzag.gcode` | 1:50 | 140 mm-tall zigzag across the whole gantry at 100, 200 and 300 mm/s, then top-speed reversals: the shortest strokes that still reach full speed |
 | `prusawire_02_z_sprint.gcode` | 0:46 | Full-height Z sprints. Starts at **12 mm/s (MK3S leadscrew max)**, then 60, 150, 300 mm/s |
 | `prusawire_03_one_motor_diamond.gcode` | 0:26 | Diamond (45° edges, **one motor per edge**) vs. square (both motors), then nested diamonds |
 | `prusawire_04_vertical_curves.gcode` | 0:49 | Vertical circles at 3 speeds, spiral in/out, 3:2 Lissajous, five-point star |
@@ -49,10 +49,41 @@ Heads-up: the stock `CANCEL_PRINT` runs `PRINT_END`, which retracts 8 mm of fila
 ```
 python3 make_demos.py --text "3DPRINTOPIA"        # skywriter text (A–Z, 0–9, - ! space)
 python3 make_demos.py --max-speed 400             # if you've tuned past 300 mm/s
+python3 make_demos.py --accel 4000                # if you've raised max_z_accel
 python3 make_demos.py --speeds 150 300 450        # zigzag / circle speed tiers
 python3 make_demos.py --repeat 6                  # a ~30 min showreel with no macros needed
 python3 make_demos.py --home-cmd G28              # always home at start
 python3 check_and_preview.py                      # re-verify + redraw preview.png
+python3 check_and_preview.py --max-speed 450      # same, for a raised-limit build
+```
+
+`check_and_preview.py` needs matplotlib. Set it up once with `python3 -m venv .venv && .venv/bin/pip install matplotlib`, then run the scripts and tests with `.venv/bin/python`.
+
+### Going faster
+
+The stock config caps Z at 300 mm/s and 2000 mm/s². G-code can't get past that (`SET_VELOCITY_LIMIT` doesn't touch `max_z_velocity` / `max_z_accel`), so going faster means raising the limits in `printer.cfg` first:
+
+```
+[printer]
+max_velocity: 450
+max_accel: 4000
+max_z_velocity: 450
+max_z_accel: 4000
+```
+
+Prove the new limits on the machine before a show: no skipped steps, no belt slap. Then regenerate with matching numbers and check the output against them:
+
+```
+python3 make_demos.py --max-speed 450 --accel 4000 --speeds 100 200 300 400 450
+python3 check_and_preview.py --max-speed 450
+```
+
+Demo 01 labels each tier with the speed it will actually reach. A tooth is at most 140 mm tall, so the top possible speed is √(accel × 140): about 530 mm/s at 2000 mm/s² and 750 mm/s at 4000. If you ask for more than that, the generator prints a `WARNING` and labels the tier with its real speed.
+
+### Tests
+
+```
+.venv/bin/python -m unittest discover -s tests
 ```
 
 **Light painting:** `--led toolhead` (Nitehawk) or `--led Stealthburner` (SB2209) turns the toolhead LEDs on while drawing and off while travelling. Combine it with `--sky-mode word` to write the whole word in one line, then shoot it with a phone on a 10–15 s night-mode or long exposure in a dim spot. Visitors get a photo of PRUSAWIRE written in light.

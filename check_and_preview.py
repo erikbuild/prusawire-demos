@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+# ABOUTME: Independently re-checks generated demo G-code for safety and speed limits.
+# ABOUTME: Also renders preview.png, a front view of every demo path.
 """Re-parse generated G-code files: verify safety and render front-view previews."""
-import glob, os, re, sys
+import argparse, glob, os, re, sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -9,7 +11,13 @@ from matplotlib.collections import LineCollection
 BOX = dict(X=(15, 235), Y=(20, 190), Z=(25, 170))
 FORBIDDEN = re.compile(r"^(M10[49]|M1[49]0|M190|M141|M191|SET_HEATER)", re.I)
 problems = []
-files = sorted(glob.glob(sys.argv[1] + "/*.gcode") if len(sys.argv) > 1 else glob.glob("gcode/*.gcode"))
+ap = argparse.ArgumentParser(description=__doc__)
+ap.add_argument("folder", nargs="?", default="gcode", help="folder of .gcode files (default: gcode)")
+ap.add_argument("--max-speed", type=float, default=300.0,
+                help="highest allowed requested speed, mm/s (default 300 = stock limit)")
+args = ap.parse_args()
+limit = args.max_speed
+files = sorted(glob.glob(args.folder + "/*.gcode"))
 paths = {}
 for fn in files:
     pos = {}
@@ -40,13 +48,14 @@ for fn in files:
                     speeds.append(words.get("F", 0) / 60)
                     ys.append(new["Y"])
             pos = new
-    if maxf > 300:
-        problems.append(f"{fn}: max requested speed {maxf:.0f} mm/s > 300")
+    if maxf > limit + 1e-6:
+        problems.append(f"{fn}: max requested speed {maxf:.0f} mm/s > {limit:.0f}")
     paths[os.path.basename(fn)] = (segs, speeds, ys, maxf)
     print(f"{os.path.basename(fn):40s} moves={len(segs):5d}  max F={maxf:.0f} mm/s  "
           f"Y range={min(ys):.0f}-{max(ys):.0f}")
 
-print("\nPROBLEMS:" if problems else "\nAll checks passed: inside safe box, no heat, no extrusion, <=300 mm/s.")
+print("\nPROBLEMS:" if problems else "\nAll checks passed: inside safe box, no heat, no extrusion, "
+      f"<={limit:.0f} mm/s.")
 for p in problems:
     print("  ", p)
 
@@ -57,7 +66,7 @@ for ax, name in zip(axs.flat, names):
     segs, speeds, _, _ = paths[name]
     lc = LineCollection(segs, cmap="viridis", linewidths=1.1)
     lc.set_array(speeds)
-    lc.set_clim(0, 300)
+    lc.set_clim(0, limit)
     ax.add_collection(lc)
     ax.add_patch(plt.Rectangle((0, 0), 250, 183, fill=False, ls="--", lw=0.8, color="0.6"))
     ax.axhspan(0, 25, color="0.92")

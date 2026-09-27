@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ABOUTME: Generates motion-only Prusawire CoreXZ demo G-code files.
+# ABOUTME: Checks every move against a safe box and estimates run times.
 """
 Prusawire motion demos - G-code generator
 =========================================
@@ -29,6 +31,7 @@ Usage
     python3 make_demos.py                       # writes ./gcode/*.gcode
     python3 make_demos.py --text "3DPRINTOPIA"  # change the skywriter text
     python3 make_demos.py --max-speed 400       # if you've raised your limits
+    python3 make_demos.py --accel 4000          # if you've raised max_z_accel
     python3 make_demos.py --led toolhead        # light painting with the SB LEDs
     python3 make_demos.py --repeat 5            # showreel plays 5x back to back
 
@@ -42,9 +45,8 @@ import os
 # --------------------------------------------------------------------------
 # Machine + safe envelope
 # --------------------------------------------------------------------------
-MACHINE = dict(max_velocity=300.0, max_accel=2000.0,
-               max_z_velocity=300.0, max_z_accel=2000.0,
-               square_corner_velocity=12.0)
+# Speed and acceleration limits come from --max-speed / --accel.
+MACHINE = dict(square_corner_velocity=12.0)
 
 SAFE = dict(x_min=15.0, x_max=235.0,
             y_min=20.0, y_max=190.0,
@@ -109,11 +111,15 @@ class GcodeWriter:
         self.pos = None          # (x, y, z) once known
         self.moves = []          # (x0,y0,z0,x1,y1,z1,v) for estimates/previews
         self.markers = []        # (move_index, label) section markers
+        self.warnings = []       # problems worth telling the user at generation time
 
     # -- helpers ----------------------------------------------------------
     def v(self, speed):
         """Clamp requested speed (mm/s) to --max-speed."""
         return min(speed, self.args.max_speed)
+
+    def warn(self, text):
+        self.warnings.append(text)
 
     def raw(self, text):
         self.lines.append(text)
@@ -219,16 +225,33 @@ def tiers(args):
     return [s for s in args.speeds if s <= args.max_speed] or [args.max_speed]
 
 
+def peak_speed(height, requested, args):
+    """Top speed reached by a stroke of `height` mm that starts and ends
+    at a reversal (near standstill): the lower of the requested speed,
+    --max-speed, and sqrt(accel * height)."""
+    return min(requested, args.max_speed, math.sqrt(args.accel * height))
+
+
+def reversal_height(speed, args):
+    """Shortest stroke, start to stop, that still reaches `speed` at --accel."""
+    return speed * speed / args.accel
+
+
 def demo_zigzag(g, args):
-    """Wide zigzag across the gantry at rising speed, then a fast 'buzz'."""
+    """Tall zigzag across the gantry at rising speed, then full-speed reversals."""
     x0, x1 = SAFE["x_min"] + 5, SAFE["x_max"] - 5
-    zlo, zhi = args.cz - 55, args.cz + 55
+    half = min(70.0, args.cz - SAFE["z_min"], SAFE["z_max"] - args.cz)
+    zlo, zhi = args.cz - half, args.cz + half
     g.msg("Z zigzag - Z as fast as X")
     g.move(x=x0, z=zlo, speed=150)
     g.dwell(500)
     teeth = 8
     for spd in tiers(args):
-        g.msg(f"Z zigzag {spd:.0f} mm/s")
+        reached = peak_speed(zhi - zlo, spd, args)
+        if reached < min(spd, args.max_speed) - 0.5:
+            g.warn(f"Z zigzag tier {spd:.0f} mm/s only reaches {reached:.0f} mm/s: "
+                   f"{zhi - zlo:.0f} mm teeth are too short at {args.accel:.0f} mm/s^2")
+        g.msg(f"Z zigzag {reached:.0f} mm/s")
         for direction in (1, -1):
             xs = (x0, x1) if direction == 1 else (x1, x0)
             n = teeth * 2
@@ -238,11 +261,12 @@ def demo_zigzag(g, args):
                 g.move(x=x, z=z, speed=spd)
         g.dwell(400)
 
-    # Buzz: short, tight, very fast Z reversals while sweeping X
-    g.msg("Z buzz - rapid reversals")
+    # Reversals: the shortest strokes that still reach top speed, sweeping X
+    height = min(reversal_height(args.max_speed, args), zhi - zlo)
+    g.msg(f"Top-speed reversals {peak_speed(height, args.max_speed, args):.0f} mm/s")
     g.move(x=x0, z=args.cz, speed=150)
-    amp = 8
-    n = 60
+    amp = height / 2
+    n = 24
     for direction in (1, -1):
         xs = (x0, x1) if direction == 1 else (x1, x0)
         for i in range(1, n + 1):
@@ -451,8 +475,9 @@ DEMOS = [
 # --------------------------------------------------------------------------
 # Time estimate (Klipper-style lookahead with junction deviation)
 # --------------------------------------------------------------------------
-def estimate_seconds(moves):
-    m = MACHINE
+def estimate_seconds(moves, args):
+    m = dict(MACHINE, max_velocity=args.max_speed, max_accel=args.accel,
+             max_z_velocity=args.max_speed, max_z_accel=args.accel)
     jd_base = m["square_corner_velocity"] ** 2 * (math.sqrt(2) - 1)
     total = 0.0
     segs = []
@@ -560,12 +585,15 @@ def fmt_time(s):
     return f"{m}:{s:02d}"
 
 
-def main():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", default="gcode", help="output folder (default: gcode)")
     p.add_argument("--max-speed", type=float, default=300.0,
                    help="cap for any requested speed, mm/s (default 300 = stock limit)")
+    p.add_argument("--accel", type=float, default=2000.0,
+                   help="machine acceleration, mm/s^2, for sizing strokes and "
+                        "estimating times (default 2000 = stock max_z_accel)")
     p.add_argument("--speeds", type=float, nargs="+", default=[100, 200, 300],
                    help="speed tiers for zigzag/circles, mm/s (default 100 200 300)")
     p.add_argument("--draw-speed", type=float, default=120.0,
@@ -586,34 +614,42 @@ def main():
     p.add_argument("--cx", type=float, default=125.0, help="centre X (default 125)")
     p.add_argument("--cy", type=float, default=105.0, help="bed Y during demos (default 105)")
     p.add_argument("--cz", type=float, default=97.5, help="centre Z (default 97.5)")
-    args = p.parse_args()
+    return p.parse_args(argv)
 
+
+def main():
+    args = parse_args()
     os.makedirs(args.out, exist_ok=True)
     report = []
+    warnings = []
     try:
         for slug, title, fn in DEMOS:
             g = build(fn, title, args)
             path = os.path.join(args.out, f"prusawire_{slug}.gcode")
             with open(path, "w") as f:
                 f.write(g.text())
-            report.append((os.path.basename(path), estimate_seconds(g.moves), len(g.lines)))
+            report.append((os.path.basename(path), estimate_seconds(g.moves, args), len(g.lines)))
+            warnings += [w for w in g.warnings if w not in warnings]
         g = build_showreel(args)
         path = os.path.join(args.out, "prusawire_00_showreel.gcode")
         with open(path, "w") as f:
             f.write(g.text())
-        report.insert(0, (os.path.basename(path), estimate_seconds(g.moves), len(g.lines)))
+        report.insert(0, (os.path.basename(path), estimate_seconds(g.moves, args), len(g.lines)))
         g = build_showreel(args, loop_hook=True)
         path = os.path.join(args.out, "prusawire_00_showreel_loop.gcode")
         with open(path, "w") as f:
             f.write(g.text())
-        report.insert(1, (os.path.basename(path), estimate_seconds(g.moves), len(g.lines)))
+        report.insert(1, (os.path.basename(path), estimate_seconds(g.moves, args), len(g.lines)))
     except OutOfBounds as e:
         raise SystemExit(f"Refusing to write: a move would leave the safe box ({e}). "
                          "Adjust --cx/--cz or the SAFE limits.")
 
-    print(f"Wrote {len(report)} files to {args.out}/  (times are estimates at stock limits)")
+    print(f"Wrote {len(report)} files to {args.out}/  (times are estimates at "
+          f"{args.max_speed:.0f} mm/s, {args.accel:.0f} mm/s^2)")
     for name, secs, n in report:
         print(f"  {name:38s} ~{fmt_time(secs):>6s}   {n:5d} lines")
+    for w in warnings:
+        print(f"WARNING: {w}")
 
 
 if __name__ == "__main__":
