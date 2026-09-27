@@ -19,18 +19,36 @@ Made for the stock `prusawire-klipper-config` (Klipper, `kinematics: corexz`, 30
 
 Times are estimates at stock limits. `preview.png` shows every path from the front.
 
+## Quick install (on the Pi)
+
+SSH into the printer's Pi, then:
+
+```
+git clone https://github.com/erikbuild/prusawire-demos.git
+cd prusawire-demos
+./install-demo.sh
+```
+
+The installer asks before each step (press Enter for yes):
+
+1. Copy the demo `.gcode` files to `~/printer_data/gcodes/`, so they show up in Mainsail.
+2. Copy `prusawire_demo.cfg` (the `DEMO_LOOP` macros) to `~/printer_data/config/`.
+3. Add `[include prusawire_demo.cfg]` to the top of `printer.cfg`, after saving a timestamped backup. It skips this if the line is already there.
+
+If step 2 or 3 changed anything, restart Klipper afterwards (`FIRMWARE_RESTART`). To update later, run `git pull` and then `./install-demo.sh` again. If your printer_data lives somewhere else, run `PRINTER_DATA=/path/to/printer_data ./install-demo.sh`.
+
 ## Running
 
 1. **Clear the bed.** The nozzle stays at least 25 mm above it, but the gantry sweeps nearly the full width.
-2. Upload the `.gcode` files through Mainsail and start any one as a normal print.
+2. Start any `.gcode` file from Mainsail as a normal print. If you didn't use the installer, upload the files through Mainsail first.
 3. Each section title shows on the LCD / Mainsail status line (`M117`) so people can read what they're watching.
 
 Every file starts with `CHOME` (the stock macro that homes only if needed). If your config doesn't have it, regenerate with `--home-cmd G28`.
 
 ### Looping all day (optional)
 
-1. Copy `prusawire_demo.cfg` next to `printer.cfg` and add `[include prusawire_demo.cfg]`. Restart Klipper.
-2. Upload `prusawire_00_showreel_loop.gcode`.
+1. Copy `prusawire_demo.cfg` next to `printer.cfg` and add `[include prusawire_demo.cfg]`. Restart Klipper. (Installer steps 2 and 3 do this.)
+2. Upload `prusawire_00_showreel_loop.gcode`. (Installer step 1 does this.)
 3. In the console, run `DEMO_LOOP` (optionally `DEMO_LOOP PAUSE=30` for 30 s between passes).
 4. To stop, run `DEMO_STOP`, which lets the current pass finish, or `DEMO_STOP NOW=1`, which cancels immediately.
 
