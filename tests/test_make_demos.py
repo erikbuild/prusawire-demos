@@ -41,6 +41,70 @@ class PeakSpeedTest(unittest.TestCase):
         self.assertAlmostEqual(md.peak_speed(100, 1000, args), math.sqrt(4000 * 100))
 
 
+def motor_speed(mv):
+    x0, y0, z0, x1, y1, z1, v = mv
+    dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
+    return v * (abs(dx) + abs(dz)) / math.sqrt(dx * dx + dy * dy + dz * dz)
+
+
+class AllowedSpeedTest(unittest.TestCase):
+    def test_pure_axis_moves_are_not_capped(self):
+        args = args_for()
+        self.assertEqual(md.allowed_speed(300, 100, 0, 100, args), 300)
+        self.assertEqual(md.allowed_speed(300, 0, 100, 100, args), 300)
+
+    def test_diagonal_is_capped_by_motor_speed(self):
+        args = args_for()
+        d = math.hypot(100, 100)
+        self.assertAlmostEqual(md.allowed_speed(300, 100, 100, d, args), 300 / math.sqrt(2))
+        self.assertAlmostEqual(md.allowed_speed(300, -100, 100, d, args), 300 / math.sqrt(2))
+
+    def test_shallow_angle(self):
+        args = args_for("--max-motor-speed", "350")
+        d = math.hypot(30, 40)
+        self.assertAlmostEqual(md.allowed_speed(300, 30, 40, d, args), 350 * 50 / 70)
+
+    def test_slow_request_is_unchanged(self):
+        args = args_for()
+        self.assertEqual(md.allowed_speed(150, 100, 100, math.hypot(100, 100), args), 150)
+
+    def test_max_speed_still_applies(self):
+        args = args_for("--max-speed", "250", "--max-motor-speed", "1000")
+        self.assertEqual(md.allowed_speed(300, 0, 100, 100, args), 250)
+
+    def test_y_travel_counts_toward_distance_only(self):
+        args = args_for()
+        d = math.sqrt(100 ** 2 + 100 ** 2 + 100 ** 2)
+        self.assertAlmostEqual(md.allowed_speed(300, 100, 100, d, args), 300 * d / 200)
+
+
+class MotorSpeedLimitTest(unittest.TestCase):
+    def assert_motors_within(self, g, limit):
+        worst = max(motor_speed(mv) for mv in g.moves if mv[0] != "dwell")
+        self.assertLessEqual(worst, limit + 1e-6)
+
+    def test_every_demo_respects_default_motor_limit(self):
+        args = args_for()
+        for slug, title, fn in md.DEMOS:
+            with self.subTest(slug):
+                self.assert_motors_within(md.build(fn, title, args), 300)
+
+    def test_showreel_respects_raised_motor_limit(self):
+        args = args_for("--max-speed", "450", "--accel", "4000", "--max-motor-speed", "400")
+        self.assert_motors_within(md.build_showreel(args), 400)
+
+    def test_emitted_feedrate_matches_capped_speed(self):
+        args = args_for()
+        g = md.build(md.demo_one_motor, "diamond", args)
+        diagonals = [mv for mv in g.moves if mv[0] != "dwell"
+                     and abs(abs(mv[3] - mv[0]) - abs(mv[5] - mv[2])) < 1e-6 and mv[3] != mv[0]]
+        self.assertGreater(len(diagonals), 10)
+        for mv in diagonals:
+            self.assertAlmostEqual(mv[6], 300 / math.sqrt(2))
+        f = 300 / math.sqrt(2) * 60
+        self.assertTrue(any(ln.endswith(f" F{f:.0f}") for ln in g.lines))
+
+
 class ReversalHeightTest(unittest.TestCase):
     def test_stock_limits(self):
         self.assertAlmostEqual(md.reversal_height(300, args_for()), 45.0)
@@ -60,23 +124,37 @@ class ZigzagTest(unittest.TestCase):
     def test_stock_labels_show_reached_speeds(self):
         g, _ = zigzag()
         msgs = messages(g)
-        for spd in (100, 200, 300):
+        # 300 mm/s teeth lean 13 mm per 140 mm, so the motor cap allows 275 mm/s
+        for spd in (100, 200, 275):
             self.assertIn(f"Z zigzag {spd} mm/s", msgs)
-        self.assertIn("Top-speed reversals 300 mm/s", msgs)
+        self.assertEqual(g.warnings, [])
         self.assertEqual(g.warnings, [])
 
-    def test_buzz_strokes_just_reach_top_speed(self):
-        g, args = zigzag()
-        start = next(i for i, (_, t) in enumerate(g.markers)
-                     if t.startswith("Top-speed reversals"))
-        idx = g.markers[start][0]
-        zs = [mv[5] for mv in g.moves[idx:] if mv[0] != "dwell"]
-        # strokes alternate cz +/- 22.5 (45 mm = 300^2 / 2000)
-        self.assertAlmostEqual(max(zs), args.cz + 22.5)
-        self.assertAlmostEqual(min(zs), args.cz - 22.5)
+    def buzz(self, *argv):
+        g, args = zigzag(*argv)
+        idx, label = next((i, t) for i, t in g.markers if t.startswith("Top-speed reversals"))
+        label_speed = float(label.split()[2])
+        strokes = [mv for mv in g.moves[idx + 1:] if mv[0] != "dwell"][1:-1]
+        return args, label_speed, strokes
+
+    def test_buzz_strokes_just_reach_labelled_speed(self):
+        args, label_speed, strokes = self.buzz()
+        heights = {round(abs(mv[5] - mv[2]), 6) for mv in strokes}
+        self.assertEqual(len(heights), 1)
+        height = heights.pop()
+        # tall enough to reach the label, and no taller than needed
+        self.assertGreaterEqual(math.sqrt(args.accel * height), label_speed - 0.5)
+        self.assertLess(height, md.reversal_height(label_speed + 5, args))
+        for mv in strokes:
+            self.assertGreaterEqual(mv[6], label_speed - 0.5)
+
+    def test_buzz_label_at_stock_limits(self):
+        _, label_speed, _ = self.buzz()
+        self.assertLess(label_speed, 300)
+        self.assertGreater(label_speed, 200)
 
     def test_raised_limits_add_faster_tiers(self):
-        g, _ = zigzag("--max-speed", "450", "--accel", "4000",
+        g, _ = zigzag("--max-speed", "450", "--accel", "4000", "--max-motor-speed", "600",
                       "--speeds", "100", "200", "300", "400", "450")
         msgs = messages(g)
         self.assertIn("Z zigzag 400 mm/s", msgs)
@@ -86,7 +164,7 @@ class ZigzagTest(unittest.TestCase):
 
     def test_unreachable_tier_is_labelled_honestly_and_warned(self):
         # sqrt(2000 * 140) = 529 mm/s is the most a 140 mm tooth can reach
-        g, _ = zigzag("--max-speed", "600", "--speeds", "300", "600")
+        g, _ = zigzag("--max-speed", "600", "--max-motor-speed", "900", "--speeds", "300", "600")
         msgs = messages(g)
         self.assertIn("Z zigzag 529 mm/s", msgs)
         self.assertNotIn("Z zigzag 600 mm/s", msgs)

@@ -37,22 +37,34 @@ class EndToEndTest(unittest.TestCase):
             "prusawire_05_helix_3d.gcode"])
 
     def test_raised_build_passes_matching_check(self):
-        fast = ["--max-speed", "450", "--accel", "4000",
+        fast = ["--max-speed", "450", "--accel", "4000", "--max-motor-speed", "600",
                 "--speeds", "100", "200", "300", "400", "450"]
-        gen, chk = self.generate_and_check(fast, ["--max-speed", "450"])
+        gen, chk = self.generate_and_check(fast, ["--max-speed", "450", "--max-motor-speed", "600"])
         self.assertNotIn("WARNING", gen.stdout)
         self.assertIn("450 mm/s, 4000 mm/s^2", gen.stdout)
         self.assertEqual(chk.returncode, 0, chk.stdout)
         self.assertIn("<=450 mm/s", chk.stdout)
 
     def test_raised_build_fails_stock_check(self):
-        _, chk = self.generate_and_check(["--max-speed", "450", "--speeds", "300", "450"], [])
+        _, chk = self.generate_and_check(
+            ["--max-speed", "450", "--max-motor-speed", "600", "--speeds", "300", "450"], [])
         self.assertEqual(chk.returncode, 1)
         self.assertIn("max requested speed 450 mm/s > 300", chk.stdout)
 
+    def test_raised_motor_limit_fails_stock_check(self):
+        _, chk = self.generate_and_check(["--max-motor-speed", "450"], [])
+        self.assertEqual(chk.returncode, 1)
+        self.assertIn("motor speed", chk.stdout)
+        self.assertIn("> 300", chk.stdout)
+
+    def test_stock_check_reports_motor_limit(self):
+        _, chk = self.generate_and_check([], [])
+        self.assertIn("motors <=300 mm/s", chk.stdout)
+
     def test_unreachable_tier_warns(self):
-        gen, _ = self.generate_and_check(["--max-speed", "600", "--speeds", "300", "600"],
-                                         ["--max-speed", "600"])
+        gen, _ = self.generate_and_check(
+            ["--max-speed", "600", "--max-motor-speed", "900", "--speeds", "300", "600"],
+            ["--max-speed", "600", "--max-motor-speed", "900"])
         self.assertIn("WARNING: Z zigzag tier 600 mm/s only reaches 529 mm/s", gen.stdout)
 
 

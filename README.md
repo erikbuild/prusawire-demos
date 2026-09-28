@@ -8,12 +8,12 @@ Made for the stock `prusawire-klipper-config` (Klipper, `kinematics: corexz`, 30
 
 | File | ~Time | What it shows |
 |---|---|---|
-| `prusawire_00_showreel.gcode` | 4:31 | All demos back to back, homes once |
-| `prusawire_00_showreel_loop.gcode` | 4:31 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
-| `prusawire_01_z_zigzag.gcode` | 1:50 | 140 mm-tall zigzag across the whole gantry at 100, 200 and 300 mm/s, then top-speed reversals: the shortest strokes that still reach full speed |
+| `prusawire_00_showreel.gcode` | 4:35 | All demos back to back, homes once |
+| `prusawire_00_showreel_loop.gcode` | 4:35 | Same, but ends by calling `_DEMO_FILE_DONE` for hands-free looping (needs `prusawire_demo.cfg`) |
+| `prusawire_01_z_zigzag.gcode` | 1:49 | 140 mm-tall zigzag across the whole gantry at 100, 200 and 275 mm/s, then top-speed reversals (~240 mm/s): the shortest strokes that still reach full speed |
 | `prusawire_02_z_sprint.gcode` | 0:46 | Full-height Z sprints. Starts at **12 mm/s (MK3S leadscrew max)**, then 60, 150, 300 mm/s |
-| `prusawire_03_one_motor_diamond.gcode` | 0:26 | Diamond (45° edges, **one motor per edge**) vs. square (both motors), then nested diamonds |
-| `prusawire_04_vertical_curves.gcode` | 0:49 | Vertical circles at 3 speeds, spiral in/out, 3:2 Lissajous, five-point star |
+| `prusawire_03_one_motor_diamond.gcode` | 0:28 | Diamond (45° edges, **one motor per edge**) vs. square (both motors), then nested diamonds |
+| `prusawire_04_vertical_curves.gcode` | 0:53 | Vertical circles at 3 speeds, spiral in/out, 3:2 Lissajous, five-point star |
 | `prusawire_05_helix_3d.gcode` | 0:32 | Gantry and bed together trace an 8-turn helix up and back down (150 mm/s) |
 
 Times are estimates at stock limits. `preview.png` shows every path from the front.
@@ -58,6 +58,7 @@ Heads-up: the stock `CANCEL_PRINT` runs `PRINT_END`, which retracts 8 mm of fila
 ## Safety
 
 - **Klipper enforces your limits.** Requested speeds above `max_velocity` / `max_z_velocity` just run at your limit, so these files can't push the machine beyond its config.
+- **The generator also caps motor speed** (`--max-motor-speed`, default 300 mm/s). Klipper can't do this itself. In CoreXZ, motor A turns with X+Z and motor B with X−Z, so the faster motor runs at |X speed| + |Z speed|. On a 45° move that's 1.41× the toolhead speed: a Klipper-legal 300 mm/s diagonal turns one motor at 424 mm/s. On a stock-current Prusawire (Einsy, 0.35 A, stealthChop), diagonals held at 354 mm/s motor speed and stalled at 424. A stalled motor drops the gantry into the bed, whatever the Z floor says. So diagonals run at 212 mm/s, and the zigzag and curves slow down wherever they lean.
 - The generator refuses to write any move outside the safe box: **X 15–235, Y 20–190, Z 25–170**. `check_and_preview.py` re-reads the finished G-code and checks this independently, along with making sure there are no heater or extrusion commands.
 - The files end with motors still enabled, so the gantry holds position until Klipper's idle timeout.
 
@@ -66,6 +67,7 @@ Heads-up: the stock `CANCEL_PRINT` runs `PRINT_END`, which retracts 8 mm of fila
 ```
 python3 make_demos.py --max-speed 400             # if you've tuned past 300 mm/s
 python3 make_demos.py --accel 4000                # if you've raised max_z_accel
+python3 make_demos.py --max-motor-speed 350       # if your motors hold faster diagonals
 python3 make_demos.py --speeds 150 300 450        # zigzag / circle speed tiers
 python3 make_demos.py --repeat 6                  # a ~30 min showreel with no macros needed
 python3 make_demos.py --home-cmd G28              # always home at start
@@ -77,7 +79,9 @@ python3 check_and_preview.py --max-speed 450      # same, for a raised-limit bui
 
 ### Going faster
 
-The stock config caps Z at 300 mm/s and 2000 mm/s². G-code can't get past that (`SET_VELOCITY_LIMIT` doesn't touch `max_z_velocity` / `max_z_accel`), so going faster means raising the limits in `printer.cfg` first:
+First, the motors. The limit you'll hit is the motor speed on diagonals (see Safety), not the Klipper limits. Raise it only after the motors can hold more, e.g. with more run current or spreadCycle at speed. Then test 45° diagonals, well clear of the bed, and set `--max-motor-speed` below the speed where they stall.
+
+The stock config also caps Z at 300 mm/s and 2000 mm/s². G-code can't get past that (`SET_VELOCITY_LIMIT` doesn't touch `max_z_velocity` / `max_z_accel`), so going faster means raising the limits in `printer.cfg` first:
 
 ```
 [printer]
@@ -90,8 +94,8 @@ max_z_accel: 4000
 Prove the new limits on the machine before a show: no skipped steps, no belt slap. Then regenerate with matching numbers and check the output against them:
 
 ```
-python3 make_demos.py --max-speed 450 --accel 4000 --speeds 100 200 300 400 450
-python3 check_and_preview.py --max-speed 450
+python3 make_demos.py --max-speed 450 --accel 4000 --max-motor-speed 450 --speeds 100 200 300 400 450
+python3 check_and_preview.py --max-speed 450 --max-motor-speed 450
 ```
 
 Demo 01 labels each tier with the speed it will actually reach. A tooth is at most 140 mm tall, so the top possible speed is √(accel × 140): about 530 mm/s at 2000 mm/s² and 750 mm/s at 4000. If you ask for more than that, the generator prints a `WARNING` and labels the tier with its real speed.

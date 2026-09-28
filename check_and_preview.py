@@ -15,14 +15,19 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("folder", nargs="?", default="gcode", help="folder of .gcode files (default: gcode)")
 ap.add_argument("--max-speed", type=float, default=300.0,
                 help="highest allowed requested speed, mm/s (default 300 = stock limit)")
+ap.add_argument("--max-motor-speed", type=float, default=300.0,
+                help="highest allowed CoreXZ motor belt speed, mm/s (default 300)")
 args = ap.parse_args()
 limit = args.max_speed
+motor_limit = args.max_motor_speed
 files = sorted(glob.glob(args.folder + "/*.gcode"))
 paths = {}
 for fn in files:
     pos = {}
     segs, speeds, ys = [], [], []
     maxf = 0
+    max_motor = 0
+    feed = 0
     for ln, line in enumerate(open(fn), 1):
         code = line.split(";")[0].strip()
         if not code:
@@ -34,7 +39,8 @@ for fn in files:
             if "E" in words:
                 problems.append(f"{fn}:{ln} extrusion: {code}")
             if "F" in words:
-                maxf = max(maxf, words["F"] / 60)
+                feed = words["F"] / 60
+                maxf = max(maxf, feed)
             new = dict(pos)
             for ax in "XYZ":
                 if ax in words:
@@ -45,17 +51,27 @@ for fn in files:
                         problems.append(f"{fn}:{ln} {ax}={new[ax]} outside box")
                 if all(a in pos for a in "XYZ"):
                     segs.append([(pos["X"], pos["Z"]), (new["X"], new["Z"])])
-                    speeds.append(words.get("F", 0) / 60)
+                    speeds.append(feed)
                     ys.append(new["Y"])
+                    # CoreXZ: the faster motor turns at (|dx| + |dz|) / distance x feed
+                    dx, dy, dz = (new[a] - pos[a] for a in "XYZ")
+                    d = (dx * dx + dy * dy + dz * dz) ** 0.5
+                    if d > 0:
+                        max_motor = max(max_motor, feed * (abs(dx) + abs(dz)) / d)
             pos = new
     if maxf > limit + 1e-6:
         problems.append(f"{fn}: max requested speed {maxf:.0f} mm/s > {limit:.0f}")
+    # 0.5% slack: coordinates are written to 0.001 mm, which shifts the
+    # computed ratio slightly on the short segments that make up curves
+    if max_motor > motor_limit * 1.005:
+        problems.append(f"{fn}: max motor speed {max_motor:.0f} mm/s > {motor_limit:.0f}")
     paths[os.path.basename(fn)] = (segs, speeds, ys, maxf)
     print(f"{os.path.basename(fn):40s} moves={len(segs):5d}  max F={maxf:.0f} mm/s  "
+          f"max motor={max_motor:.0f} mm/s  "
           f"Y range={min(ys):.0f}-{max(ys):.0f}")
 
 print("\nPROBLEMS:" if problems else "\nAll checks passed: inside safe box, no heat, no extrusion, "
-      f"<={limit:.0f} mm/s.")
+      f"<={limit:.0f} mm/s, motors <={motor_limit:.0f} mm/s.")
 for p in problems:
     print("  ", p)
 

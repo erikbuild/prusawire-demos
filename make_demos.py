@@ -31,6 +31,7 @@ Usage
     python3 make_demos.py                       # writes ./gcode/*.gcode
     python3 make_demos.py --max-speed 400       # if you've raised your limits
     python3 make_demos.py --accel 4000          # if you've raised max_z_accel
+    python3 make_demos.py --max-motor-speed 350 # if your motors hold more
     python3 make_demos.py --repeat 5            # showreel plays 5x back to back
 
 Run `python3 make_demos.py -h` for all options.
@@ -54,6 +55,19 @@ SAFE = dict(x_min=15.0, x_max=235.0,
 # --------------------------------------------------------------------------
 # G-code writer
 # --------------------------------------------------------------------------
+def allowed_speed(requested, dx, dz, d, args):
+    """Requested speed capped by --max-speed and by --max-motor-speed.
+
+    In CoreXZ, motor A turns with X+Z and motor B with X-Z, so the faster
+    motor runs at (|dx| + |dz|) / d times the toolhead speed: up to 1.41x on
+    a 45-degree move. Klipper only limits toolhead speed, so the cap is here."""
+    spd = min(requested, args.max_speed)
+    motor_ratio = (abs(dx) + abs(dz)) / d
+    if motor_ratio > 0:
+        spd = min(spd, args.max_motor_speed / motor_ratio)
+    return spd
+
+
 class OutOfBounds(Exception):
     pass
 
@@ -68,10 +82,6 @@ class GcodeWriter:
         self.warnings = []       # problems worth telling the user at generation time
 
     # -- helpers ----------------------------------------------------------
-    def v(self, speed):
-        """Clamp requested speed (mm/s) to --max-speed."""
-        return min(speed, self.args.max_speed)
-
     def warn(self, text):
         self.warnings.append(text)
 
@@ -111,7 +121,8 @@ class GcodeWriter:
         self.check(x, y, z)
         if abs(x - x0) < 1e-4 and abs(y - y0) < 1e-4 and abs(z - z0) < 1e-4:
             return
-        spd = self.v(speed)
+        dx, dy, dz = x - x0, y - y0, z - z0
+        spd = allowed_speed(speed, dx, dz, math.sqrt(dx * dx + dy * dy + dz * dz), self.args)
         parts = ["G1"]
         if abs(x - x0) >= 1e-4:
             parts.append(f"X{x:.3f}")
@@ -191,9 +202,11 @@ def demo_zigzag(g, args):
     g.move(x=x0, z=zlo, speed=150)
     g.dwell(500)
     teeth = 8
+    tooth_dx = (x1 - x0) / (teeth * 2)
+    tooth_d = math.hypot(tooth_dx, zhi - zlo)
     for spd in tiers(args):
-        reached = peak_speed(zhi - zlo, spd, args)
-        if reached < min(spd, args.max_speed) - 0.5:
+        reached = peak_speed(zhi - zlo, allowed_speed(spd, tooth_dx, zhi - zlo, tooth_d, args), args)
+        if reached < allowed_speed(spd, tooth_dx, zhi - zlo, tooth_d, args) - 0.5:
             g.warn(f"Z zigzag tier {spd:.0f} mm/s only reaches {reached:.0f} mm/s: "
                    f"{zhi - zlo:.0f} mm teeth are too short at {args.accel:.0f} mm/s^2")
         g.msg(f"Z zigzag {reached:.0f} mm/s")
@@ -206,12 +219,18 @@ def demo_zigzag(g, args):
                 g.move(x=x, z=z, speed=spd)
         g.dwell(400)
 
-    # Reversals: the shortest strokes that still reach top speed, sweeping X
-    height = min(reversal_height(args.max_speed, args), zhi - zlo)
-    g.msg(f"Top-speed reversals {peak_speed(height, args.max_speed, args):.0f} mm/s")
+    # Reversals: the shortest strokes that still reach top speed, sweeping X.
+    # Shorter strokes lean more, which lowers the motor-capped speed, which
+    # shortens the strokes again; a few rounds settle on a stable height.
+    n = 24
+    step = (x1 - x0) / n
+    top = args.max_speed
+    for _ in range(20):
+        height = min(reversal_height(top, args), zhi - zlo)
+        top = allowed_speed(args.max_speed, step, height, math.hypot(step, height), args)
+    g.msg(f"Top-speed reversals {peak_speed(height, top, args):.0f} mm/s")
     g.move(x=x0, z=args.cz, speed=150)
     amp = height / 2
-    n = 24
     for direction in (1, -1):
         xs = (x0, x1) if direction == 1 else (x1, x0)
         for i in range(1, n + 1):
@@ -482,6 +501,9 @@ def parse_args(argv=None):
     p.add_argument("--out", default="gcode", help="output folder (default: gcode)")
     p.add_argument("--max-speed", type=float, default=300.0,
                    help="cap for any requested speed, mm/s (default 300 = stock limit)")
+    p.add_argument("--max-motor-speed", type=float, default=300.0,
+                   help="cap for either CoreXZ motor's belt speed, mm/s (default 300). "
+                        "A 45-degree move turns one motor 1.41x faster than the toolhead")
     p.add_argument("--accel", type=float, default=2000.0,
                    help="machine acceleration, mm/s^2, for sizing strokes and "
                         "estimating times (default 2000 = stock max_z_accel)")
