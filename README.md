@@ -106,6 +106,19 @@ Demo 01 labels each tier with the speed it will actually reach. A tooth is at mo
 .venv/bin/python -m unittest discover -s tests
 ```
 
+## Homing measurement tools
+
+`tools/` has two scripts for checking sensorless homing on a CoreXZ, e.g. before and after tuning `driver_SGT`. They drive the printer through Moonraker. They read the motor step counts with `GET_POSITION` and probe at X125 Y105, so a skipped motor shows up as whole electrical cycles. **They home and probe, so clear the bed.**
+
+```
+python3 tools/x_home_repeatability.py x out.csv          # 9× G28 X from Z120/60/20: where X lands
+python3 tools/x_home_repeatability.py full out.csv       # same, with a cold-start G28
+python3 tools/homing_stage_slips.py cold-path out.csv    # each stage of a cold G28, per-motor slips
+python3 tools/homing_stage_slips.py margin out.csv       # both motors at homing current: hold, back off
+```
+
+Run them on the Pi, or from another machine with `MOONRAKER_URL=http://<printer-ip>:7125`. Steps per mm and microsteps come from the printer's config.
+
 ## Booth talking points
 
 - **Why is Z so fast?** On an MK3S, Z runs on leadscrews and the firmware caps it at 12 mm/s and 200 mm/s². On the Prusawire, the gantry is lifted by the same two belts and motors that move X, so Z gets the same limits as X: 300 mm/s and 2000 mm/s² in the stock config. That's **25× the speed and 10× the acceleration.** Demo 02 starts at MK3S speed so people can see the difference.
